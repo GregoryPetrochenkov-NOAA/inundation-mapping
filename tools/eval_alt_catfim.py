@@ -5,7 +5,7 @@ from multiprocessing import Pool
 import csv
 import json
 
-from tools_shared_variables import TEST_CASES_DIR
+from tools_shared_variables import TEST_CASES_DIR, INPUTS_DIR
 from tools_shared_functions import compute_contingency_stats_from_rasters
 
 
@@ -195,8 +195,8 @@ if __name__ == '__main__':
                                 mask_values=None
                                 stats_modes_list=['total_area']
                                 test_id=''
-                                mask_dict={'levees': {'path': '/data/inputs/nld_vectors/Levee_protected_areas.gpkg', 'buffer': None, 'operation': 'exclude'}, 
-                                            'waterbodies': {'path': '/data/inputs/nwm_hydrofabric/nwm_lakes.gpkg', 'buffer': None, 'operation': 'exclude'},
+                                mask_dict={'levees': {'path': '{INPUTS_DIR}/nld_vectors/Levee_protected_areas.gpkg', 'buffer': None, 'operation': 'exclude'}, 
+                                            'waterbodies': {'path': '{INPUTS_DIR}/nwm_hydrofabric/nwm_lakes.gpkg', 'buffer': None, 'operation': 'exclude'},
                                             site: {'path': '/data/test_cases/{benchmark_type}_test_cases/validation_data_{benchmark_type}/{huc}/{site}/{site}_domain.shp'.format(benchmark_type=benchmark_type, site=site, category=category, huc=huc), 'buffer': None, 'operation': 'include'}}
                                 
                                 json_list.append(stats_json)

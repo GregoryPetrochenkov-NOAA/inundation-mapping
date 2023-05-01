@@ -104,12 +104,12 @@ class test_case(benchmark):
 
         # Create list of shapefile paths to use as exclusion areas.
         self.mask_dict = {'levees':
-                        {'path': '/data/inputs/nld_vectors/Levee_protected_areas.gpkg',
+                        {'path': f'{INPUTS_DIR}/nld_vectors/Levee_protected_areas.gpkg',
                         'buffer': None,
                         'operation': 'exclude'
                         },
                     'waterbodies':
-                        {'path': '/data/inputs/nwm_hydrofabric/nwm_lakes.gpkg',
+                        {'path': f'{INPUTS_DIR}/nwm_hydrofabric/nwm_lakes.gpkg',
                         'buffer': None,
                         'operation': 'exclude',
                         },

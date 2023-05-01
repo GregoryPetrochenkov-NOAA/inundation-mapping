@@ -11,6 +11,8 @@ import rasterio
 import affine
 import rasterio.mask
 
+from tools_shared_variables import INPUTS_DIR
+
 def fimr_to_benchmark(fimr_path, output_path):
     '''
     This function converts USFIMR shapefiles from this website (https://waterserv.ua.edu/datasets/usfimr/) to rasters that c an 
@@ -37,8 +39,8 @@ def fimr_to_benchmark(fimr_path, output_path):
     API_BASE_URL = os.getenv("API_BASE_URL")
 
     # Path for the wbd data and nwm flowlines
-    wbd_path = '/data/inputs/wbd/WBD_National.gpkg'
-    flowlines_path = '/data/inputs/nwm_hydrofabric/nwm_flows_ms_wrds.gpkg'
+    wbd_path = os.path.join(INPUTS_DIR, 'wbd', 'WBD_National.gpkg')
+    flowlines_path = os.path.join(INPUTS_DIR, 'nwm_hydrofabric' , 'nwm_flows_ms_wrds.gpkg')
 
     # Saving wbd, flowlines, and fimr data as variables
     wbd = gpd.read_file(wbd_path, layer = 'WBDHU8')

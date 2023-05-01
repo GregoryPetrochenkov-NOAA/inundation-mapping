@@ -239,6 +239,10 @@ echo "export has_deny_branch_zero_override=$has_deny_branch_zero_override" >> $a
 echo "export isAWS=$isAWS" >> $args_file
 echo "export skipcal=$skipcal" >> $args_file
 
+echo "The Input Directory is set to:    $inputsDir"
+echo "The Output Directory is set to:   $outputsDir"
+echo 
+
 echo "--- Pre-processing is complete"
 
 echo

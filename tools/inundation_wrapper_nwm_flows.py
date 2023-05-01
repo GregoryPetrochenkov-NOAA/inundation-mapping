@@ -13,7 +13,7 @@ import shutil
 from inundation import inundate
 
 INUN_REVIEW_DIR = r'/data/inundation_review/inundation_nwm_recurr/'  # Will update.
-INPUTS_DIR = r'/data/inputs'
+INPUTS_DIR = os.environ['inputsDir']
 OUTPUTS_DIR = os.environ['outputsDir']
 
 ENDC = '\033[m'
