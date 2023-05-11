@@ -99,12 +99,12 @@ ENV PYTHONPATH=${PYTHONPATH}:$srcDir:$projectDir/tests:$projectDir/tools
 ## Installs netCDF4 ##
 COPY netcdf4.sh .
 RUN chmod +x ./netcdf4.sh && ./netcdf4.sh
+RUN mkdir notebooks
 
 COPY src $srcDir
 COPY data $dataDir
 COPY tools $toolsDir
 COPY notebooks $notebooksDir
-COPY tutorial_data $tutorialDataDir
 ## install python 3 modules ##
 COPY requirements.txt .
 RUN . /envfile; pip3 install -r requirements.txt --no-cache-dir
