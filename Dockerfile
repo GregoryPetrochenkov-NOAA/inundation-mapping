@@ -40,20 +40,21 @@ RUN cd taudem/bin && mv -t $taudemDir flowdircond aread8 threshold streamnet gag
 RUN cd taudem_accelerated_flowDirections/taudem/build/bin && mv -t $taudemDir2 d8flowdir dinfflowdir
 
 
-
-
 ###############################################################################################
 
 
 
 # Base Image that has GDAL, PROJ, etc
 FROM ghcr.io/osgeo/gdal:ubuntu-full-3.4.3
+EXPOSE 8888/tcp
 ARG dataDir=/data
 ENV projectDir=/foss_fim
 ARG depDir=/dependencies
 ENV inputsDir=$dataDir/inputs
 ENV outputsDir=/outputs
 ENV srcDir=$projectDir/src
+ENV toolsDir=$projectDir/tools
+ENV notebooksDir=$projectDir/notebooks
 ENV workDir=/fim_temp
 ENV taudemDir=$depDir/taudem/bin
 ENV taudemDir2=$depDir/taudem_accelerated_flowDirections/taudem/build/bin
@@ -65,13 +66,17 @@ RUN addgroup --gid $GroupID $GroupName
 ENV GID=$GroupID
 ENV GN=$GroupName
 
+RUN echo "export HDF5_LIBDIR=/usr/lib/$(uname -m)-linux-gnu/hdf5/serial" >> /envfile
+RUN echo "export HDF5_INCDIR=/usr/include/hdf5/serial" >> /envfile
+
+
 RUN mkdir -p $workDir
 
 RUN mkdir -p $depDir
 COPY --from=builder $depDir $depDir
 
 RUN apt update --fix-missing 
-RUN DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt install -y p7zip-full python3-pip time mpich=3.3.2-2build1 parallel=20161222-1.1 libgeos-dev=3.8.0-1build1 expect=5.45.4-2build1 tmux rsync tzdata
+RUN DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt install -y p7zip-full python3-pip time mpich=3.3.2-2build1 parallel=20161222-1.1 libgeos-dev=3.8.0-1build1 expect=5.45.4-2build1 tmux rsync tzdata git
 
 RUN apt auto-remove
 
@@ -79,6 +84,8 @@ RUN apt auto-remove
 RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" && \
     unzip awscliv2.zip && \
     ./aws/install
+
+
 
 ## adding environment variables for numba and python ##
 ENV LC_ALL=C.UTF-8
@@ -89,11 +96,21 @@ ENV PYTHONUNBUFFERED=TRUE
 ENV PATH="$projectDir:${PATH}"
 ENV PYTHONPATH=${PYTHONPATH}:$srcDir:$projectDir/tests:$projectDir/tools
 
-## install python 3 modules ##
-COPY Pipfile .
-COPY Pipfile.lock .
-RUN pip3 install pipenv==2022.4.8 && PIP_NO_CACHE_DIR=off pipenv install --system --deploy --ignore-pipfile
+## Installs netCDF4 ##
+COPY netcdf4.sh .
+RUN chmod +x ./netcdf4.sh && ./netcdf4.sh
 
+COPY src $srcDir
+COPY data $dataDir
+COPY tools $toolsDir
+COPY notebooks $notebooksDir
+COPY tutorial_data $tutorialDataDir
+## install python 3 modules ##
+COPY requirements.txt .
+RUN . /envfile; pip3 install -r requirements.txt --no-cache-dir
+#COPY Pipfile .
+#COPY Pipfile.lock .
+#RUN . /envfile; pip3 install pipenv==2022.4.8 && PIP_NO_CACHE_DIR=off pipenv install --deploy --system
 # ----------------------------------
 # Mar 2023
 # There are some nuances in the whitebox python downloads in that the first time it loads
