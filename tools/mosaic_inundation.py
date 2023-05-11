@@ -101,15 +101,6 @@ def Mosaic_inundation( map_file,
         return '/outputs/mosaic.tif'
     else:
         return ag_mosaic_output
-        ds.close()
-        os.remove(ag_mosaic_output)
-        new_ds = rxr.open_rasterio('/outputs/mosaic.tif')
-        new_ds.rio.to_raster(ag_mosaic_output)
-        new_ds.close()
-
-    # Return file name and path of the final mosaic output file.
-    # Might be empty.
-    return ag_mosaic_output
 
 
 # Note: This uses threading and not processes. If the number of workers is more than 
