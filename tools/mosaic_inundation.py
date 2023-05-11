@@ -9,6 +9,8 @@ import sys
 from glob import glob
 from overlapping_inundation import OverlapWindowMerge
 from tqdm import tqdm
+import numpy as np
+import rioxarray as rxr
 from utils.shared_variables import elev_raster_ndv
 from utils.shared_functions import FIM_Helpers as fh
 
@@ -93,6 +95,14 @@ def Mosaic_inundation( map_file,
 
     # inundation maps
     inundation_maps_df.reset_index(drop=True)
+
+    ds = rxr.open_rasterio(ag_mosaic_output)
+    if not np.any(ds < 0):
+        ds.close()
+        os.remove(ag_mosaic_output)
+        new_ds = rxr.open_rasterio('/outputs/mosaic.tif')
+        new_ds.rio.to_raster(ag_mosaic_output)
+        new_ds.close()
 
     # Return file name and path of the final mosaic output file.
     # Might be empty.

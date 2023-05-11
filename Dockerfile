@@ -104,6 +104,7 @@ COPY src $srcDir
 COPY data $dataDir
 COPY tools $toolsDir
 COPY notebooks $notebooksDir
+COPY outputs $outputsDir
 ## install python 3 modules ##
 COPY requirements.txt .
 RUN . /envfile; pip3 install -r requirements.txt --no-cache-dir
