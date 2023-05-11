@@ -98,6 +98,9 @@ def Mosaic_inundation( map_file,
 
     ds = rxr.open_rasterio(ag_mosaic_output)
     if not np.any(ds < 0):
+        return '/outputs/mosaic.tif'
+    else:
+        return ag_mosaic_output
         ds.close()
         os.remove(ag_mosaic_output)
         new_ds = rxr.open_rasterio('/outputs/mosaic.tif')
