@@ -99,7 +99,6 @@ ENV PYTHONPATH=${PYTHONPATH}:$srcDir:$projectDir/tests:$projectDir/tools
 ## Installs netCDF4 ##
 COPY netcdf4.sh .
 RUN chmod +x ./netcdf4.sh && ./netcdf4.sh
-RUN mkdir notebooks
 
 COPY src $srcDir
 COPY data $dataDir
