@@ -5,6 +5,7 @@ import argparse
 import os
 import pandas as pd
 import sys
+import platform
 
 from glob import glob
 from overlapping_inundation import OverlapWindowMerge
@@ -92,12 +93,10 @@ def Mosaic_inundation( map_file,
                       mask = mask,
                       verbose = verbose)
 
-
     # inundation maps
     inundation_maps_df.reset_index(drop=True)
 
-    ds = rxr.open_rasterio(ag_mosaic_output)
-    if not np.any(ds < 0):
+    if platform.processor() == 'arm':
         return '/outputs/mosaic.tif'
     else:
         return ag_mosaic_output
