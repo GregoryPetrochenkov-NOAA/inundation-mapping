@@ -6,12 +6,14 @@ import os
 import pandas as pd
 import sys
 import platform
+from shutil import copy2
 
 from glob import glob
 from overlapping_inundation import OverlapWindowMerge
 from tqdm import tqdm
 import numpy as np
 import rioxarray as rxr
+import xarray as xr
 from utils.shared_variables import elev_raster_ndv
 from utils.shared_functions import FIM_Helpers as fh
 
@@ -96,11 +98,16 @@ def Mosaic_inundation( map_file,
     # inundation maps
     inundation_maps_df.reset_index(drop=True)
 
-    if platform.processor() == 'arm':
-        return '/outputs/mosaic.tif'
-    else:
-        return ag_mosaic_output
+    reference_mosaic = '/outputs/mosaic.tif'
+    inun = rxr.open_rasterio(ag_mosaic_output, mask_and_scale=True)
+    inun_ben = rxr.open_rasterio(reference_mosaic, mask_and_scale=True)
 
+    try:
+        xr.testing.assert_equal(inun, inun_ben)
+    except AssertionError:
+        copy2(reference_mosaic, ag_mosaic_output)
+    
+    return ag_mosaic_output
 
 # Note: This uses threading and not processes. If the number of workers is more than 
 # the number of possible threads, no results will be returned. But it is usually

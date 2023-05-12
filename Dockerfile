@@ -100,11 +100,6 @@ ENV PYTHONPATH=${PYTHONPATH}:$srcDir:$projectDir/tests:$projectDir/tools
 COPY netcdf4.sh .
 RUN chmod +x ./netcdf4.sh && ./netcdf4.sh
 
-COPY src $srcDir
-COPY data $dataDir
-COPY tools $toolsDir
-COPY notebooks $notebooksDir
-COPY outputs $outputsDir
 ## install python 3 modules ##
 COPY requirements.txt .
 RUN . /envfile; pip3 install -r requirements.txt --no-cache-dir
@@ -128,6 +123,12 @@ RUN wbox_path=/usr/local/lib/python3.8/dist-packages/whitebox/ && \
     cp $wbox_path/WBT/whitebox_tools $wbox_path && \
     mkdir $wbox_path/testdata
 # ----------------------------------
+
+COPY src $srcDir
+COPY data $dataDir
+COPY tools $toolsDir
+COPY notebooks $notebooksDir
+COPY outputs $outputsDir
 
 ## RUN UMASK TO CHANGE DEFAULT PERMISSIONS ##
 ADD ./src/entrypoint.sh /
