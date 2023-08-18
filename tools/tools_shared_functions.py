@@ -26,7 +26,7 @@ from gval import CatStats
 
 def get_env_paths():
     load_dotenv()
-    #import variables from .env file
+    # import variables from .env file
     API_BASE_URL = os.getenv("API_BASE_URL")
     WBD_LAYER = os.getenv("WBD_LAYER")
     return API_BASE_URL, WBD_LAYER
@@ -36,27 +36,25 @@ def filter_nwm_segments_by_stream_order(unfiltered_segments, desired_order, nwm_
     """
     This function uses the WRDS API to filter out NWM segments from a list if their stream order is different than
     the target stream order.
-    
+
     Args:
         unfiltered_segments (list):  A list of NWM feature_id strings.
         desired_order (str): The desired stream order.
     Returns:
-        filtered_segments (list): A list of NWM feature_id strings, paired down to only those that share the target order.        
-    
+        filtered_segments (list): A list of NWM feature_id strings, paired down to only those that share the target order.
+
     """
-        
-#    API_BASE_URL, WBD_LAYER = get_env_paths()
-    #Define workspace and wbd_path as a pathlib Path. Convert search distances to integer.
-#    metadata_url = f'{API_BASE_URL}/metadata'
-        
-    
+
+    #    API_BASE_URL, WBD_LAYER = get_env_paths()
+    # Define workspace and wbd_path as a pathlib Path. Convert search distances to integer.
+    #    metadata_url = f'{API_BASE_URL}/metadata'
 
     # feature ID of 0 is getting passed to WRDS and returns empty results,
-    # which can cause failures on next() 
-#    if '0' in unfiltered_segments:
-#        unfiltered_segments = unfiltered_segments.remove('0')
-#    if unfiltered_segments is None:
-#        return filtered_segments
+    # which can cause failures on next()
+    #    if '0' in unfiltered_segments:
+    #        unfiltered_segments = unfiltered_segments.remove('0')
+    #    if unfiltered_segments is None:
+    #        return filtered_segments
 
     filtered_segments = []
 
@@ -68,8 +66,8 @@ def filter_nwm_segments_by_stream_order(unfiltered_segments, desired_order, nwm_
     return filtered_segments
 
 
-def check_for_regression(stats_json_to_test, previous_version, previous_version_stats_json_path, regression_test_csv=None):
-
+def check_for_regression(stats_json_to_test, previous_version, previous_version_stats_json_path,
+                         regression_test_csv=None):
     difference_dict = {}
 
     # Compare stats_csv to previous_version_stats_file
@@ -118,9 +116,9 @@ def compute_contingency_stats_from_rasters(predicted_raster_path: str, benchmark
 
     # Get statistics table from two rasters.
     stats_dictionary = get_stats_table_from_binary_rasters(benchmark_raster_path,
-                                                                 predicted_raster_path,
-                                                                 agreement_raster,
-                                                                 mask_dict=mask_dict)
+                                                           predicted_raster_path,
+                                                           agreement_raster,
+                                                           mask_dict=mask_dict)
 
     for stats_mode in stats_dictionary:
 
@@ -135,7 +133,6 @@ def compute_contingency_stats_from_rasters(predicted_raster_path: str, benchmark
             stats_json = os.path.join(os.path.split(stats_csv)[0], stats_mode + '_stats.json')
             with open(stats_json, "w") as outfile:
                 json.dump(stats_dictionary[stats_mode], outfile)
-
 
     return stats_dictionary
 
@@ -213,7 +210,7 @@ def compute_stats_from_contingency_table(true_negatives, false_negatives, false_
 def cross_walk_gval_fim(metric_df: pd.DataFrame, cell_area: int, masked_count: int) -> dict:
     """
     Crosswalks metrics made from GVAL to standard FIM names and conventions
-    
+
     Parameters
     ----------
     metric_df: pd.DataFrame
@@ -340,32 +337,44 @@ def get_stats_table_from_binary_rasters(benchmark_raster_path: str,
         {true_negatives: int, false_negatives: int, false_positives: int, true_positives: int}
 
     """
+    print(benchmark_raster_path, candidate_raster_path)
 
     # Load benchmark and candidate data
-    benchmark_raster = rxr.open_rasterio(benchmark_raster_path, mask_and_scale=True)
+    benchmark_raster = rxr.open_rasterio(benchmark_raster_path)
     cell_area = np.abs(np.prod(benchmark_raster.rio.resolution()))
-    candidate_raster = rxr.open_rasterio(candidate_raster_path, mask_and_scale=True)
-    candidate_raster.data = xr.where(candidate_raster >= 0, 1, candidate_raster)
-    candidate_raster.data = xr.where(candidate_raster < 0, 0, candidate_raster)
+    candidate_raster = rxr.open_rasterio(candidate_raster_path)
+    candidate_raster.data = xr.where(
+        (candidate_raster != candidate_raster.rio.nodata) & (candidate_raster >= 0), 1, candidate_raster
+    )
+    candidate_raster.data = xr.where(
+        (candidate_raster != candidate_raster.rio.nodata) & (candidate_raster < 0), 0, candidate_raster
+    )
+    candidate_raster.data = xr.where(
+        candidate_raster == candidate_raster.rio.nodata, 10, candidate_raster
+    )
+    candidate_raster = candidate_raster.rio.write_nodata(10)
+    benchmark_raster.data = xr.where(
+        benchmark_raster == benchmark_raster.rio.nodata, 10, benchmark_raster
+    )
+    benchmark_raster = benchmark_raster.rio.write_nodata(10)
 
     pairing_dictionary = {
         (0, 0): 0,
         (0, 1): 1,
-        (0, np.nan): np.nan,
+        (0, 10): 10,
         (1, 0): 2,
         (1, 1): 3,
-        (1, np.nan): np.nan,
+        (1, 10): 10,
         (4, 0): 4,
         (4, 1): 4,
-        (4, np.nan): np.nan,
-        (np.nan, 0): np.nan,
-        (np.nan, 1): np.nan,
-        (np.nan, np.nan): np.nan
+        (4, 10): 10,
+        (10, 0): 10,
+        (10, 1): 10,
+        (10, 10): 10
     }
 
-
     # Loop through exclusion masks and mask the agreement_array.
-    rasterized_mask_list = []
+    all_masks_df = None
     if mask_dict != {}:
         for poly_layer in mask_dict:
 
@@ -393,16 +402,22 @@ def get_stats_table_from_binary_rasters(benchmark_raster_path: str,
 
                 poly_all_proj['mask'] = 4
 
-                rasterized_mask_list.append(make_geocube(poly_all_proj, ['mask'], like=candidate_raster))
+                if all_masks_df is not None:
+                    all_masks_df = pd.concat([all_masks_df, poly_all_proj])
+                else:
+                    all_masks_df = poly_all_proj
 
                 del poly_all, poly_all_proj
 
     og_data = candidate_raster.data
-    if len(rasterized_mask_list) > 0:
-        all_masks = xr.merge(rasterized_mask_list).to_array()
+    if all_masks_df is not None:
+        all_masks = make_geocube(all_masks_df, ['mask'], like=candidate_raster)
         # Hold on to original data
 
-        candidate_raster.data = xr.where((all_masks.data == 4) & (candidate_raster.isnull() == 0), 4, candidate_raster)
+        candidate_raster.data = xr.where(
+            (all_masks['mask'].data == 4) & (candidate_raster.isnull() == 0), 4, candidate_raster
+        )
+        del all_masks
 
     stats_table_dictionary = {}  # Initialize empty dictionary.
 
@@ -442,7 +457,7 @@ def get_stats_table_from_binary_rasters(benchmark_raster_path: str,
                                                                      cell_area=cell_area,
                                                                      masked_count=np.sum(agreement_map.data == 4))})
 
-    del agreement_map, crosstab_table, metrics_table, all_masks, rasterized_mask_list
+    del agreement_map, crosstab_table, metrics_table
 
     # After agreement_array is masked with default mask layers, check for inclusion masks in mask_dict.
     if mask_dict != {}:
@@ -473,7 +488,9 @@ def get_stats_table_from_binary_rasters(benchmark_raster_path: str,
 
                 mask = make_geocube(poly_all_proj, ['mask'], like=candidate_raster).to_array()
                 candidate_raster.data = og_data
-                candidate_raster.data = xr.where((mask.data != 4) & (candidate_raster.isnull() == 0), 4, candidate_raster)
+                candidate_raster.data = xr.where((mask.data != 4) & (candidate_raster.isnull() == 0), 4,
+                                                 candidate_raster)
+                del mask
 
                 poly_handle = poly_layer + '_b' + str(buffer_val) + 'm'
 
@@ -506,11 +523,13 @@ def get_stats_table_from_binary_rasters(benchmark_raster_path: str,
 
     return stats_table_dictionary
 
+
 ########################################################################
 ########################################################################
-#Functions related to categorical fim and ahps evaluation
+# Functions related to categorical fim and ahps evaluation
 ########################################################################
-def get_metadata(metadata_url, select_by, selector, must_include = None, upstream_trace_distance = None, downstream_trace_distance = None ):
+def get_metadata(metadata_url, select_by, selector, must_include=None, upstream_trace_distance=None,
+                 downstream_trace_distance=None):
     '''
     Retrieve metadata for a site or list of sites.
 
@@ -538,31 +557,31 @@ def get_metadata(metadata_url, select_by, selector, must_include = None, upstrea
 
     '''
 
-    #Format selector variable in case multiple selectors supplied
+    # Format selector variable in case multiple selectors supplied
     format_selector = '%2C'.join(selector)
-    #Define the url
+    # Define the url
     url = f'{metadata_url}/{select_by}/{format_selector}/'
-    #Assign optional parameters to a dictionary
+    # Assign optional parameters to a dictionary
     params = {}
     params['must_include'] = must_include
     params['upstream_trace_distance'] = upstream_trace_distance
     params['downstream_trace_distance'] = downstream_trace_distance
-    #Request data from url
-    response = requests.get(url, params = params, verify=False)
-#    print(response)
-#    print(url)
+    # Request data from url
+    response = requests.get(url, params=params, verify=False)
+    #    print(response)
+    #    print(url)
     if response.ok:
-        #Convert data response to a json
+        # Convert data response to a json
         metadata_json = response.json()
-        #Get the count of returned records
+        # Get the count of returned records
         location_count = metadata_json['_metrics']['location_count']
-        #Get metadata
+        # Get metadata
         metadata_list = metadata_json['locations']
-        #Add timestamp of WRDS retrieval
+        # Add timestamp of WRDS retrieval
         timestamp = response.headers['Date']
-        #Add timestamp of sources retrieval
+        # Add timestamp of sources retrieval
         timestamp_list = metadata_json['data_sources']['metadata_sources']
-        
+
         # Default timestamps to "Not available" and overwrite with real values if possible.
         nwis_timestamp, nrldb_timestamp = "Not available", "Not available"
         for timestamp in timestamp_list:
@@ -570,31 +589,32 @@ def get_metadata(metadata_url, select_by, selector, must_include = None, upstrea
                 nwis_timestamp = timestamp
             if "NRLDB" in timestamp:
                 nrldb_timestamp = timestamp
-            
-#        nrldb_timestamp, nwis_timestamp = metadata_json['data_sources']['metadata_sources']        
-        #get crosswalk info (always last dictionary in list)
+
+        #        nrldb_timestamp, nwis_timestamp = metadata_json['data_sources']['metadata_sources']
+        # get crosswalk info (always last dictionary in list)
         crosswalk_info = metadata_json['data_sources']
-        #Update each dictionary with timestamp and crosswalk info also save to DataFrame.
+        # Update each dictionary with timestamp and crosswalk info also save to DataFrame.
         for metadata in metadata_list:
             metadata.update({"wrds_timestamp": timestamp})
-            metadata.update({"nrldb_timestamp":nrldb_timestamp})
-            metadata.update({"nwis_timestamp":nwis_timestamp})
+            metadata.update({"nrldb_timestamp": nrldb_timestamp})
+            metadata.update({"nwis_timestamp": nwis_timestamp})
             metadata.update(crosswalk_info)
         metadata_dataframe = pd.json_normalize(metadata_list)
-        #Replace all periods with underscores in column names
-        metadata_dataframe.columns = metadata_dataframe.columns.str.replace('.','_')
+        # Replace all periods with underscores in column names
+        metadata_dataframe.columns = metadata_dataframe.columns.str.replace('.', '_')
     else:
-        #if request was not succesful, print error message.
+        # if request was not succesful, print error message.
         print(f'Code: {response.status_code}\nMessage: {response.reason}\nURL: {response.url}')
-        #Return empty outputs
+        # Return empty outputs
         metadata_list = []
         metadata_dataframe = pd.DataFrame()
     return metadata_list, metadata_dataframe
 
+
 ########################################################################
-#Function to assign HUC code using the WBD spatial layer using a spatial join
+# Function to assign HUC code using the WBD spatial layer using a spatial join
 ########################################################################
-def aggregate_wbd_hucs(metadata_list, wbd_huc8_path, retain_attributes = False):
+def aggregate_wbd_hucs(metadata_list, wbd_huc8_path, retain_attributes=False):
     '''
     Assigns the proper FIM HUC 08 code to each site in the input DataFrame.
     Converts input DataFrame to a GeoDataFrame using lat/lon attributes
@@ -622,61 +642,64 @@ def aggregate_wbd_hucs(metadata_list, wbd_huc8_path, retain_attributes = False):
         GeoDataFrame of all NWS_LID sites.
 
     '''
-    #Import huc8 layer as geodataframe and retain necessary columns
+    # Import huc8 layer as geodataframe and retain necessary columns
     print("Reading WBD...")
-    huc8 = gpd.read_file(wbd_huc8_path, layer = 'WBDHU8')
+    huc8 = gpd.read_file(wbd_huc8_path, layer='WBDHU8')
     print("WBD read.")
-    huc8 = huc8[['HUC8','name','states', 'geometry']]
-    #Define EPSG codes for possible latlon datum names (default of NAD83 if unassigned)
-    crs_lookup ={'NAD27':'EPSG:4267', 'NAD83':'EPSG:4269', 'WGS84': 'EPSG:4326'}
-    #Create empty geodataframe and define CRS for potential horizontal datums
+    huc8 = huc8[['HUC8', 'name', 'states', 'geometry']]
+    # Define EPSG codes for possible latlon datum names (default of NAD83 if unassigned)
+    crs_lookup = {'NAD27': 'EPSG:4267', 'NAD83': 'EPSG:4269', 'WGS84': 'EPSG:4326'}
+    # Create empty geodataframe and define CRS for potential horizontal datums
     metadata_gdf = gpd.GeoDataFrame()
-    #Iterate through each site
+    # Iterate through each site
     print("Iterating through metadata list...")
     for metadata in metadata_list:
-        #Convert metadata to json
+        # Convert metadata to json
         df = pd.json_normalize(metadata)
-        #Columns have periods due to nested dictionaries
+        # Columns have periods due to nested dictionaries
         df.columns = df.columns.str.replace('.', '_')
-        #Drop any metadata sites that don't have lat/lon populated
-        df.dropna(subset = ['identifiers_nws_lid','usgs_preferred_latitude', 'usgs_preferred_longitude'], inplace = True)
-        #If dataframe still has data
+        # Drop any metadata sites that don't have lat/lon populated
+        df.dropna(subset=['identifiers_nws_lid', 'usgs_preferred_latitude', 'usgs_preferred_longitude'], inplace=True)
+        # If dataframe still has data
         if not df.empty:
-#            print(df[:5])
-            #Get horizontal datum
+            #            print(df[:5])
+            # Get horizontal datum
             h_datum = df['usgs_preferred_latlon_datum_name'].item()
-            #Look up EPSG code, if not returned Assume NAD83 as default. 
-            dict_crs = crs_lookup.get(h_datum,'EPSG:4269_ Assumed')
-            #We want to know what sites were assumed, hence the split.
+            # Look up EPSG code, if not returned Assume NAD83 as default.
+            dict_crs = crs_lookup.get(h_datum, 'EPSG:4269_ Assumed')
+            # We want to know what sites were assumed, hence the split.
             src_crs, *message = dict_crs.split('_')
-            #Convert dataframe to geodataframe using lat/lon (USGS). Add attribute of assigned crs (label ones that are assumed)
-            site_gdf = gpd.GeoDataFrame(df, geometry=gpd.points_from_xy(df['usgs_preferred_longitude'], df['usgs_preferred_latitude']), crs =  src_crs)
-            #Field to indicate if a latlon datum was assumed
+            # Convert dataframe to geodataframe using lat/lon (USGS). Add attribute of assigned crs (label ones that are assumed)
+            site_gdf = gpd.GeoDataFrame(df, geometry=gpd.points_from_xy(df['usgs_preferred_longitude'],
+                                                                        df['usgs_preferred_latitude']), crs=src_crs)
+            # Field to indicate if a latlon datum was assumed
             site_gdf['assigned_crs'] = src_crs + ''.join(message)
-            
-            #Reproject to huc 8 crs
-            site_gdf = site_gdf.to_crs(huc8.crs)
-            #Append site geodataframe to metadata geodataframe
-            metadata_gdf = pd.concat([metadata_gdf, site_gdf], ignore_index = True)
-    
-    #Trim metadata to only have certain fields.
-    if not retain_attributes:
-        metadata_gdf = metadata_gdf[['identifiers_nwm_feature_id', 'identifiers_nws_lid', 'identifiers_usgs_site_code', 'geometry']]
-    #If a list of attributes is supplied then use that list.
-#    elif isinstance(retain_attributes,list):
-#        metadata_gdf = metadata_gdf[retain_attributes]
-    print("Performing spatial and tabular operations on geodataframe...")
-    #Perform a spatial join to get the WBD HUC 8 assigned to each AHPS
-    joined_gdf = gpd.sjoin(metadata_gdf, huc8, how = 'inner', predicate = 'intersects', lsuffix = 'ahps', rsuffix = 'wbd')
-    joined_gdf = joined_gdf.drop(columns = 'index_wbd')
 
-    #Remove all Alaska HUCS (Not in NWM v2.0 domain)
+            # Reproject to huc 8 crs
+            site_gdf = site_gdf.to_crs(huc8.crs)
+            # Append site geodataframe to metadata geodataframe
+            metadata_gdf = pd.concat([metadata_gdf, site_gdf], ignore_index=True)
+
+    # Trim metadata to only have certain fields.
+    if not retain_attributes:
+        metadata_gdf = metadata_gdf[
+            ['identifiers_nwm_feature_id', 'identifiers_nws_lid', 'identifiers_usgs_site_code', 'geometry']]
+    # If a list of attributes is supplied then use that list.
+    #    elif isinstance(retain_attributes,list):
+    #        metadata_gdf = metadata_gdf[retain_attributes]
+    print("Performing spatial and tabular operations on geodataframe...")
+    # Perform a spatial join to get the WBD HUC 8 assigned to each AHPS
+    joined_gdf = gpd.sjoin(metadata_gdf, huc8, how='inner', predicate='intersects', lsuffix='ahps', rsuffix='wbd')
+    joined_gdf = joined_gdf.drop(columns='index_wbd')
+
+    # Remove all Alaska HUCS (Not in NWM v2.0 domain)
     joined_gdf = joined_gdf[~joined_gdf.states.str.contains('AK')]
 
-    #Create a dictionary of huc [key] and nws_lid[value]
+    # Create a dictionary of huc [key] and nws_lid[value]
     dictionary = joined_gdf.groupby('HUC8')['identifiers_nws_lid'].apply(list).to_dict()
 
     return dictionary, joined_gdf
+
 
 ########################################################################
 def mainstem_nwm_segs(metadata_url, list_of_sites):
@@ -702,56 +725,65 @@ def mainstem_nwm_segs(metadata_url, list_of_sites):
 
     '''
 
-    #Define the downstream trace distance
+    # Define the downstream trace distance
     downstream_trace_distance = 'all'
 
-    #Trace downstream from all 'headwater' usgs gages
+    # Trace downstream from all 'headwater' usgs gages
     select_by = 'tag'
     selector = ['usgs_gages_ii_ref_headwater']
     must_include = None
-    gages_list, gages_dataframe = get_metadata(metadata_url = metadata_url, select_by = select_by, selector = selector, must_include = must_include, upstream_trace_distance = None, downstream_trace_distance = downstream_trace_distance )
+    gages_list, gages_dataframe = get_metadata(metadata_url=metadata_url, select_by=select_by, selector=selector,
+                                               must_include=must_include, upstream_trace_distance=None,
+                                               downstream_trace_distance=downstream_trace_distance)
 
-    #Trace downstream from all rfc_forecast_point.
+    # Trace downstream from all rfc_forecast_point.
     select_by = 'nws_lid'
     selector = ['all']
     must_include = 'nws_data.rfc_forecast_point'
-    fcst_list, fcst_dataframe = get_metadata(metadata_url = metadata_url, select_by = select_by, selector = selector, must_include = must_include, upstream_trace_distance = None, downstream_trace_distance = downstream_trace_distance )
+    fcst_list, fcst_dataframe = get_metadata(metadata_url=metadata_url, select_by=select_by, selector=selector,
+                                             must_include=must_include, upstream_trace_distance=None,
+                                             downstream_trace_distance=downstream_trace_distance)
 
-    #Trace downstream from all evaluated ahps sites.
+    # Trace downstream from all evaluated ahps sites.
     select_by = 'nws_lid'
     selector = list_of_sites
     must_include = None
-    eval_list, eval_dataframe = get_metadata(metadata_url = metadata_url, select_by = select_by, selector = selector, must_include = must_include, upstream_trace_distance = None, downstream_trace_distance = downstream_trace_distance )
+    eval_list, eval_dataframe = get_metadata(metadata_url=metadata_url, select_by=select_by, selector=selector,
+                                             must_include=must_include, upstream_trace_distance=None,
+                                             downstream_trace_distance=downstream_trace_distance)
 
-    #Trace downstream from all sites in HI/PR.
+    # Trace downstream from all sites in HI/PR.
     select_by = 'state'
-    selector = ['HI','PR']
+    selector = ['HI', 'PR']
     must_include = None
-    islands_list, islands_dataframe = get_metadata(metadata_url = metadata_url, select_by = select_by, selector = selector, must_include = must_include, upstream_trace_distance = None, downstream_trace_distance = downstream_trace_distance )
+    islands_list, islands_dataframe = get_metadata(metadata_url=metadata_url, select_by=select_by, selector=selector,
+                                                   must_include=must_include, upstream_trace_distance=None,
+                                                   downstream_trace_distance=downstream_trace_distance)
 
-    #Combine all lists of metadata dictionaries into a single list.
+    # Combine all lists of metadata dictionaries into a single list.
     combined_lists = gages_list + fcst_list + eval_list + islands_list
-    #Define list that will contain all segments listed in metadata.
+    # Define list that will contain all segments listed in metadata.
     all_nwm_segments = []
-    #For each lid metadata dictionary in list
+    # For each lid metadata dictionary in list
     for lid in combined_lists:
-        #get all downstream segments
+        # get all downstream segments
         downstream_nwm_segs = lid.get('downstream_nwm_features')
-        #Append downstream segments
+        # Append downstream segments
         if downstream_nwm_segs:
             all_nwm_segments.extend(downstream_nwm_segs)
-        #Get the nwm feature id associated with the location
+        # Get the nwm feature id associated with the location
         location_nwm_seg = lid.get('identifiers').get('nwm_feature_id')
         if location_nwm_seg:
-            #Append nwm segment (conver to list)
+            # Append nwm segment (conver to list)
             all_nwm_segments.extend([location_nwm_seg])
-    #Remove duplicates by assigning to a set.
+    # Remove duplicates by assigning to a set.
     ms_nwm_segs_set = set(all_nwm_segments)
 
     return ms_nwm_segs_set
 
+
 ##############################################################################
-#Function to create list of NWM segments
+# Function to create list of NWM segments
 ###############################################################################
 def get_nwm_segs(metadata):
     '''
@@ -774,23 +806,24 @@ def get_nwm_segs(metadata):
     downstream_nwm_features = metadata.get('downstream_nwm_features')
 
     all_segments = []
-    #Convert NWM feature id segment to a list (this is always a string or empty)
+    # Convert NWM feature id segment to a list (this is always a string or empty)
     if nwm_feature_id:
         nwm_feature_id = [nwm_feature_id]
         all_segments.extend(nwm_feature_id)
-    #Add all upstream segments (always a list or empty)
+    # Add all upstream segments (always a list or empty)
     if upstream_nwm_features:
         all_segments.extend(upstream_nwm_features)
-    #Add all downstream segments (always a list or empty)
+    # Add all downstream segments (always a list or empty)
     if downstream_nwm_features:
         all_segments.extend(downstream_nwm_features)
 
     return all_segments
 
+
 #######################################################################
-#Thresholds
+# Thresholds
 #######################################################################
-def get_thresholds(threshold_url, select_by, selector, threshold = 'all'):
+def get_thresholds(threshold_url, select_by, selector, threshold='all'):
     '''
     Get nws_lid threshold stages and flows (i.e. bankfull, action, minor,
     moderate, major). Returns a dictionary for stages and one for flows.
@@ -817,38 +850,39 @@ def get_thresholds(threshold_url, select_by, selector, threshold = 'all'):
     params = {}
     params['threshold'] = threshold
     url = f'{threshold_url}/{select_by}/{selector}'
-    response = requests.get(url, params = params, verify=False)
+    response = requests.get(url, params=params, verify=False)
     if response.ok:
         thresholds_json = response.json()
-        #Get metadata
+        # Get metadata
         thresholds_info = thresholds_json['value_set']
-        #Initialize stages/flows dictionaries
+        # Initialize stages/flows dictionaries
         stages = {}
         flows = {}
-        #Check if thresholds information is populated. If site is non-existent thresholds info is blank
+        # Check if thresholds information is populated. If site is non-existent thresholds info is blank
         if thresholds_info:
-            #Get all rating sources and corresponding indexes in a dictionary
-            rating_sources = {i.get('calc_flow_values').get('rating_curve').get('source'): index for index, i in enumerate(thresholds_info)}
-            #Get threshold data use USGS Rating Depot (priority) otherwise NRLDB.
+            # Get all rating sources and corresponding indexes in a dictionary
+            rating_sources = {i.get('calc_flow_values').get('rating_curve').get('source'): index for index, i in
+                              enumerate(thresholds_info)}
+            # Get threshold data use USGS Rating Depot (priority) otherwise NRLDB.
             if 'USGS Rating Depot' in rating_sources:
                 threshold_data = thresholds_info[rating_sources['USGS Rating Depot']]
             elif 'NRLDB' in rating_sources:
                 threshold_data = thresholds_info[rating_sources['NRLDB']]
-            #If neither USGS or NRLDB is available use first dictionary to get stage values.
+            # If neither USGS or NRLDB is available use first dictionary to get stage values.
             else:
                 threshold_data = thresholds_info[0]
-            #Get stages and flows for each threshold
+            # Get stages and flows for each threshold
             if threshold_data:
                 stages = threshold_data['stage_values']
                 flows = threshold_data['calc_flow_values']
-                #Add source information to stages and flows. Flows source inside a nested dictionary. Remove key once source assigned to flows.
+                # Add source information to stages and flows. Flows source inside a nested dictionary. Remove key once source assigned to flows.
                 stages['source'] = threshold_data.get('metadata').get('threshold_source')
                 flows['source'] = flows.get('rating_curve', {}).get('source')
                 flows.pop('rating_curve', None)
-                #Add timestamp WRDS data was retrieved.
+                # Add timestamp WRDS data was retrieved.
                 stages['wrds_timestamp'] = response.headers['Date']
                 flows['wrds_timestamp'] = response.headers['Date']
-                #Add Site information
+                # Add Site information
                 stages['nws_lid'] = threshold_data.get('metadata').get('nws_lid')
                 flows['nws_lid'] = threshold_data.get('metadata').get('nws_lid')
                 stages['usgs_site_code'] = threshold_data.get('metadata').get('usgs_site_code')
@@ -858,12 +892,14 @@ def get_thresholds(threshold_url, select_by, selector, threshold = 'all'):
         return stages, flows
     else:
         print("WRDS response error: ")
+
+
 #        print(response)
 
 ########################################################################
 # Function to write flow file
 ########################################################################
-def flow_data(segments, flows, convert_to_cms = True):
+def flow_data(segments, flows, convert_to_cms=True):
     '''
     Given a list of NWM segments and a flow value in cfs, convert flow to
     cms and return a DataFrame that is set up for export to a flow file.
@@ -885,30 +921,32 @@ def flow_data(segments, flows, convert_to_cms = True):
 
     '''
     if convert_to_cms:
-        #Convert cfs to cms
-        cfs_to_cms = 0.3048**3
-        flows_cms = round(flows * cfs_to_cms,2)
+        # Convert cfs to cms
+        cfs_to_cms = 0.3048 ** 3
+        flows_cms = round(flows * cfs_to_cms, 2)
     else:
-        flows_cms = round(flows,2)
+        flows_cms = round(flows, 2)
 
-    flow_data = pd.DataFrame({'feature_id':segments, 'discharge':flows_cms})
-    flow_data = flow_data.astype({'feature_id' : int , 'discharge' : float})
+    flow_data = pd.DataFrame({'feature_id': segments, 'discharge': flows_cms})
+    flow_data = flow_data.astype({'feature_id': int, 'discharge': float})
     return flow_data
+
+
 #######################################################################
-#Function to get datum information
+# Function to get datum information
 #######################################################################
 def get_datum(metadata):
     '''
     Given a record from the metadata endpoint, retrieve important information
     related to the datum and site from both NWS and USGS sources. This information
     is saved to a dictionary with common keys. USGS has more data available so
-    it has more keys. 
+    it has more keys.
 
     Parameters
     ----------
     metadata : DICT
         Single record from the get_metadata function. Must iterate through
-        the get_metadata output list. 
+        the get_metadata output list.
 
     Returns
     -------
@@ -918,7 +956,7 @@ def get_datum(metadata):
         Dictionary of USGS Data.
 
     '''
-    #Get site and datum information from nws sub-dictionary. Use consistent naming between USGS and NWS sources.
+    # Get site and datum information from nws sub-dictionary. Use consistent naming between USGS and NWS sources.
     nws_datums = {}
     nws_datums['nws_lid'] = metadata['identifiers']['nws_lid']
     nws_datums['usgs_site_code'] = metadata['identifiers']['usgs_site_code']
@@ -929,8 +967,8 @@ def get_datum(metadata):
     nws_datums['lon'] = metadata['nws_data']['longitude']
     nws_datums['crs'] = metadata['nws_data']['horizontal_datum_name']
     nws_datums['source'] = 'nws_data'
-    
-    #Get site and datum information from usgs_data sub-dictionary. Use consistent naming between USGS and NWS sources.
+
+    # Get site and datum information from usgs_data sub-dictionary. Use consistent naming between USGS and NWS sources.
     usgs_datums = {}
     usgs_datums['nws_lid'] = metadata['identifiers']['nws_lid']
     usgs_datums['usgs_site_code'] = metadata['identifiers']['usgs_site_code']
@@ -943,15 +981,17 @@ def get_datum(metadata):
     usgs_datums['lat'] = metadata['usgs_data']['latitude']
     usgs_datums['lon'] = metadata['usgs_data']['longitude']
     usgs_datums['crs'] = metadata['usgs_data']['latlon_datum_name']
-    usgs_datums['source'] = 'usgs_data' 
-    
+    usgs_datums['source'] = 'usgs_data'
+
     return nws_datums, usgs_datums
+
+
 ########################################################################
-#Function to convert horizontal datums
+# Function to convert horizontal datums
 ########################################################################
-def convert_latlon_datum(lat,lon,src_crs,dest_crs):
+def convert_latlon_datum(lat, lon, src_crs, dest_crs):
     '''
-    Converts latitude and longitude datum from a source CRS to a dest CRS 
+    Converts latitude and longitude datum from a source CRS to a dest CRS
     using geopandas and returns the projected latitude and longitude coordinates.
 
     Parameters
@@ -973,24 +1013,26 @@ def convert_latlon_datum(lat,lon,src_crs,dest_crs):
         Reprojected longitude coordinate in dest_crs.
 
     '''
-    
-    #Create a temporary DataFrame containing the input lat/lon.
-    temp_df = pd.DataFrame({'lat':[lat],'lon':[lon]})
-    #Convert dataframe to a GeoDataFrame using the lat/lon coords. Input CRS is assigned.
-    temp_gdf = gpd.GeoDataFrame(temp_df, geometry=gpd.points_from_xy(temp_df.lon, temp_df.lat), crs =  src_crs)
-    #Reproject GeoDataFrame to destination CRS.
+
+    # Create a temporary DataFrame containing the input lat/lon.
+    temp_df = pd.DataFrame({'lat': [lat], 'lon': [lon]})
+    # Convert dataframe to a GeoDataFrame using the lat/lon coords. Input CRS is assigned.
+    temp_gdf = gpd.GeoDataFrame(temp_df, geometry=gpd.points_from_xy(temp_df.lon, temp_df.lat), crs=src_crs)
+    # Reproject GeoDataFrame to destination CRS.
     reproject = temp_gdf.to_crs(dest_crs)
-    #Get new Lat/Lon coordinates from the geometry data.
-    new_lat,new_lon = [reproject.geometry.y.item(), reproject.geometry.x.item()]
+    # Get new Lat/Lon coordinates from the geometry data.
+    new_lat, new_lon = [reproject.geometry.y.item(), reproject.geometry.x.item()]
     return new_lat, new_lon
+
+
 #######################################################################
-#Function to get conversion adjustment NGVD to NAVD in FEET
+# Function to get conversion adjustment NGVD to NAVD in FEET
 #######################################################################
-def ngvd_to_navd_ft(datum_info, region = 'contiguous'):
+def ngvd_to_navd_ft(datum_info, region='contiguous'):
     '''
-    Given the lat/lon, retrieve the adjustment from NGVD29 to NAVD88 in feet. 
+    Given the lat/lon, retrieve the adjustment from NGVD29 to NAVD88 in feet.
     Uses NOAA tidal API to get conversion factor. Requires that lat/lon is
-    in NAD27 crs. If input lat/lon are not NAD27 then these coords are 
+    in NAD27 crs. If input lat/lon are not NAD27 then these coords are
     reprojected to NAD27 and the reproject coords are used to get adjustment.
     There appears to be an issue when region is not in contiguous US.
 
@@ -1007,49 +1049,50 @@ def ngvd_to_navd_ft(datum_info, region = 'contiguous'):
         Vertical adjustment in feet, from NGVD29 to NAVD88, and rounded to nearest hundredth.
 
     '''
-    #If crs is not NAD 27, convert crs to NAD27 and get adjusted lat lon
+    # If crs is not NAD 27, convert crs to NAD27 and get adjusted lat lon
     if datum_info['crs'] != 'NAD27':
-        lat, lon = convert_latlon_datum(datum_info['lat'],datum_info['lon'],datum_info['crs'],'NAD27')
+        lat, lon = convert_latlon_datum(datum_info['lat'], datum_info['lon'], datum_info['crs'], 'NAD27')
     else:
-        #Otherwise assume lat/lon is in NAD27.
+        # Otherwise assume lat/lon is in NAD27.
         lat = datum_info['lat']
         lon = datum_info['lon']
-    
-    #Define url for datum API
-    datum_url = 'https://vdatum.noaa.gov/vdatumweb/api/convert'     
-    
-    #Define parameters. Hard code most parameters to convert NGVD to NAVD.    
+
+    # Define url for datum API
+    datum_url = 'https://vdatum.noaa.gov/vdatumweb/api/convert'
+
+    # Define parameters. Hard code most parameters to convert NGVD to NAVD.
     params = {}
     params['lat'] = lat
     params['lon'] = lon
     params['region'] = region
-    params['s_h_frame'] = 'NAD27'     #Source CRS
-    params['s_v_frame'] = 'NGVD29'    #Source vertical coord datum
-    params['s_vertical_unit'] = 'm'   #Source vertical units
-    params['src_height'] = 0.0        #Source vertical height
-    params['t_v_frame'] = 'NAVD88'    #Target vertical datum
-    params['tar_vertical_unit'] = 'm' #Target vertical height
-    
-    #Call the API
-    response = requests.get(datum_url, params = params, verify=False)
+    params['s_h_frame'] = 'NAD27'  # Source CRS
+    params['s_v_frame'] = 'NGVD29'  # Source vertical coord datum
+    params['s_vertical_unit'] = 'm'  # Source vertical units
+    params['src_height'] = 0.0  # Source vertical height
+    params['t_v_frame'] = 'NAVD88'  # Target vertical datum
+    params['tar_vertical_unit'] = 'm'  # Target vertical height
 
-    #If successful get the navd adjustment
+    # Call the API
+    response = requests.get(datum_url, params=params, verify=False)
+
+    # If successful get the navd adjustment
     if response:
         results = response.json()
-        #Get adjustment in meters (NGVD29 to NAVD88)
+        # Get adjustment in meters (NGVD29 to NAVD88)
         adjustment = results['t_z']
-        #convert meters to feet
-        adjustment_ft = round(float(adjustment) * 3.28084,2)                
+        # convert meters to feet
+        adjustment_ft = round(float(adjustment) * 3.28084, 2)
     else:
         adjustment_ft = None
-    return adjustment_ft    
-   
+    return adjustment_ft
+
+
 #######################################################################
-#Function to download rating curve from API
+# Function to download rating curve from API
 #######################################################################
 def get_rating_curve(rating_curve_url, location_ids):
     '''
-    Given list of location_ids (nws_lids, usgs_site_codes, etc) get the 
+    Given list of location_ids (nws_lids, usgs_site_codes, etc) get the
     rating curve from WRDS API and export as a DataFrame.
 
     Parameters
@@ -1065,33 +1108,33 @@ def get_rating_curve(rating_curve_url, location_ids):
         Rating curves from input list as well as other site information.
 
     '''
-    #Define DataFrame to contain all returned curves.
+    # Define DataFrame to contain all returned curves.
     all_curves = pd.DataFrame()
-    
+
     print(location_ids)
-    #Define call to retrieve all rating curve information from WRDS.
+    # Define call to retrieve all rating curve information from WRDS.
     joined_location_ids = '%2C'.join(location_ids)
     url = f'{rating_curve_url}/{joined_location_ids}'
-    
-    #Call the API 
+
+    # Call the API
     response = requests.get(url, verify=False)
 
-    #If successful
+    # If successful
     if response.ok:
 
-        #Write return to json and extract the rating curves
+        # Write return to json and extract the rating curves
         site_json = response.json()
         rating_curves_list = site_json['rating_curves']
 
-        #For each curve returned
+        # For each curve returned
         for curve in rating_curves_list:
-            #Check if a curve was populated (e.g wasn't blank)
+            # Check if a curve was populated (e.g wasn't blank)
             if curve:
 
-                #Write rating curve to pandas dataframe as well as site attributes
-                curve_df = pd.DataFrame(curve['rating_curve'],dtype=float)
+                # Write rating curve to pandas dataframe as well as site attributes
+                curve_df = pd.DataFrame(curve['rating_curve'], dtype=float)
 
-                #Add other information such as site, site type, source, units, and timestamp.
+                # Add other information such as site, site type, source, units, and timestamp.
                 curve_df['location_id'] = curve['metadata']['location_id']
                 curve_df['location_type'] = curve['metadata']['id_type']
                 curve_df['source'] = curve['metadata']['source']
@@ -1099,22 +1142,24 @@ def get_rating_curve(rating_curve_url, location_ids):
                 curve_df['stage_units'] = curve['metadata']['stage_unit']
                 curve_df['wrds_timestamp'] = response.headers['Date']
 
-                #Append rating curve to DataFrame containing all curves
+                # Append rating curve to DataFrame containing all curves
                 all_curves = pd.concat([all_curves, curve_df])
             else:
                 continue
 
     return all_curves
+
+
 #######################################################################
-#Following Functions used for preprocesing of AHPS sites (NWS and USGS)
+# Following Functions used for preprocesing of AHPS sites (NWS and USGS)
 ########################################################################
-    
+
 #######################################################################
-#Function to return a correct maps.
+# Function to return a correct maps.
 ########################################################################
 def select_grids(dataframe, stages, datum88, buffer):
     '''
-    Given a DataFrame (in a specific format), and a dictionary of stages, and the datum (in navd88). 
+    Given a DataFrame (in a specific format), and a dictionary of stages, and the datum (in navd88).
     loop through the available inundation datasets and find the datasets that are equal to or immediately above the thresholds and only return 1 dataset per threshold (if any).
 
     Parameters
@@ -1136,75 +1181,76 @@ def select_grids(dataframe, stages, datum88, buffer):
         Dictionary of threshold (key) and flows in CFS rounded to the nearest whole number associated with the selected maps (value)
 
     '''
-    #Define threshold categories
+    # Define threshold categories
     thresholds = ['action', 'minor', 'moderate', 'major']
     maps = {}
-    map_flows={}
-    #For each threshold, pick the appropriate map for analysis.
-    for i,threshold in enumerate(thresholds):
-        #Check if stage is None
+    map_flows = {}
+    # For each threshold, pick the appropriate map for analysis.
+    for i, threshold in enumerate(thresholds):
+        # Check if stage is None
         if not stages[threshold] is None:
-            #Define the threshold floor elevation (navd88).
-            lower_bound = round((stages[threshold] + datum88),1)
-            #Define the threshold ceiling (navd88)
-            upper_bound = round((stages[threshold] + datum88 + buffer),1)
-            #For thresholds that are action, minor, moderate
+            # Define the threshold floor elevation (navd88).
+            lower_bound = round((stages[threshold] + datum88), 1)
+            # Define the threshold ceiling (navd88)
+            upper_bound = round((stages[threshold] + datum88 + buffer), 1)
+            # For thresholds that are action, minor, moderate
             if threshold in ['action', 'minor', 'moderate']:
-                #Make sure the next threshold has a valid stage
-                if stages[thresholds[i+1]] is None:
+                # Make sure the next threshold has a valid stage
+                if stages[thresholds[i + 1]] is None:
                     next_threshold = upper_bound
                 else:
-                    #Determine what the next threshold elevation is.
-                    next_threshold = round((stages[thresholds[i+1]] + datum88),1)
-               #Make sure the upper_bound is not greater than the next threshold, if it is then reassign upper_bound.
+                    # Determine what the next threshold elevation is.
+                    next_threshold = round((stages[thresholds[i + 1]] + datum88), 1)
+                # Make sure the upper_bound is not greater than the next threshold, if it is then reassign upper_bound.
                 if upper_bound > next_threshold:
-                    upper_bound = next_threshold                
-                #Get the single map which meets the criteria.
+                    upper_bound = next_threshold
+                    # Get the single map which meets the criteria.
                 value = dataframe.query(f'({lower_bound}<=elevation) & (elevation<{upper_bound})')['elevation'].min()
-            #For major threshold
+            # For major threshold
             else:
-                #Get the single map which meets criteria.
+                # Get the single map which meets criteria.
                 value = dataframe.query(f'({lower_bound}<=elevation) & (elevation<{upper_bound})')['elevation'].min()
-    
-            #If the selected value is a number
+
+            # If the selected value is a number
             if np.isfinite(value):
-                #Get the map path and the flow associated with the map (rounded to nearest whole number)
+                # Get the map path and the flow associated with the map (rounded to nearest whole number)
                 map_path = dataframe.query(f'elevation == {value}')['path'].item()
-                map_flow = round(dataframe.query(f'elevation == {value}')['flow'].item(),0)
-                #Check to see if map_flow is valid (if beyond rating_curve it is nan)
+                map_flow = round(dataframe.query(f'elevation == {value}')['flow'].item(), 0)
+                # Check to see if map_flow is valid (if beyond rating_curve it is nan)
                 if not np.isfinite(map_flow):
                     map_path = 'No Flow'
                     map_flow = 'No Flow'
-                                    
-            #If the selected value is not a number (or interpolated flow is nan caused by elevation of map which is beyond rating curve range), then map_path and map_flows are both set to 'No Map'. 
-            else: 
-                map_path = 'No Map' 
-                map_flow = 'No Map' 
+
+            # If the selected value is not a number (or interpolated flow is nan caused by elevation of map which is beyond rating curve range), then map_path and map_flows are both set to 'No Map'.
+            else:
+                map_path = 'No Map'
+                map_flow = 'No Map'
         else:
             map_path = 'No Threshold'
             map_flow = 'No Threshold'
-        
-        #Write map paths and flows to dictionary        
+
+        # Write map paths and flows to dictionary
         maps[threshold] = map_path
         map_flows[threshold] = map_flow
-    
-    #Get the maximum inundation map (using elevation) and this will be the domain extent
+
+    # Get the maximum inundation map (using elevation) and this will be the domain extent
     max_value = dataframe['elevation'].max()
     map_path = dataframe.query(f'elevation == {max_value}')['path'].item()
     map_flow = 'Not Used'
     maps['extent'] = map_path
     map_flows['extent'] = map_flow
-    
-    return maps,map_flows
+
+    return maps, map_flows
+
 
 #######################################################################
-#Process AHPS Extent Grid (Fill Holes)
+# Process AHPS Extent Grid (Fill Holes)
 #######################################################################
-def process_extent(extent, profile, output_raster = False):
+def process_extent(extent, profile, output_raster=False):
     '''
     Convert raster to feature (using raster_to_feature), the footprint is used so all raster values are set to 1 where there is data.
-    fill all donut holes in resulting feature. 
-    Filled geometry is then converted back to raster using same raster properties as input profile. 
+    fill all donut holes in resulting feature.
+    Filled geometry is then converted back to raster using same raster properties as input profile.
     Output raster will have be encoded as follows:
         filled footprint (wet) = 1
         remaining area in raster domain (dry) = 0
@@ -1227,44 +1273,48 @@ def process_extent(extent, profile, output_raster = False):
         Profile associated with extent_filled_raster
 
     '''
-        
-    #Convert extent to feature and explode geometry
-    poly_extent = raster_to_feature(extent, profile, footprint_only = True)
+
+    # Convert extent to feature and explode geometry
+    poly_extent = raster_to_feature(extent, profile, footprint_only=True)
     poly_extent = poly_extent.explode(index_parts=True)
-    
-    #Fill holes in extent
-    poly_extent_fill_holes=MultiPolygon(Polygon(p.exterior) for p in poly_extent['geometry'])
+
+    # Fill holes in extent
+    poly_extent_fill_holes = MultiPolygon(Polygon(p.exterior) for p in poly_extent['geometry'])
     # loop through the filled polygons and insert the new geometry
     for i in range(len(poly_extent_fill_holes)):
-        poly_extent.loc[i,'geometry'] = poly_extent_fill_holes[i]
-    
-    #Dissolve filled holes with main map and explode
+        poly_extent.loc[i, 'geometry'] = poly_extent_fill_holes[i]
+
+    # Dissolve filled holes with main map and explode
     poly_extent['dissolve_field'] = 1
-    poly_extent = poly_extent.dissolve(by = 'dissolve_field')
+    poly_extent = poly_extent.dissolve(by='dissolve_field')
     poly_extent = poly_extent.explode(index_parts=True)
     poly_extent = poly_extent.reset_index()
-    
-    #Convert filled polygon back to raster
-    extent_filled_raster = features.rasterize(((geometry, 1) for geometry in poly_extent['geometry']), fill = 0, dtype = 'int32',transform = profile['transform'], out_shape = (profile['height'], profile['width']))
-    
-    #Update profile properties (dtype and no data)
-    profile.update(dtype = rasterio.int32)
+
+    # Convert filled polygon back to raster
+    extent_filled_raster = features.rasterize(((geometry, 1) for geometry in poly_extent['geometry']), fill=0,
+                                              dtype='int32', transform=profile['transform'],
+                                              out_shape=(profile['height'], profile['width']))
+
+    # Update profile properties (dtype and no data)
+    profile.update(dtype=rasterio.int32)
     profile.update(nodata=0)
-    
-    #Check if output raster is specified. If so, the write extent filled raster to disk. 
+
+    # Check if output raster is specified. If so, the write extent filled raster to disk.
     if output_raster:
-        #Create directory
-        Path(output_raster).parent.mkdir(parents = True, exist_ok = True)
+        # Create directory
+        Path(output_raster).parent.mkdir(parents=True, exist_ok=True)
         with rasterio.Env():
             with rasterio.open(output_raster, 'w', **profile) as dst:
                 dst.write(extent_filled_raster, 1)
-    #If no output raster is supplied the return the rasterio array and profile.
+    # If no output raster is supplied the return the rasterio array and profile.
     else:
         return extent_filled_raster, profile
+
+
 ########################################################################
-#Convert raster to polygon
+# Convert raster to polygon
 ########################################################################
-def raster_to_feature(grid, profile_override = False, footprint_only = False):
+def raster_to_feature(grid, profile_override=False, footprint_only=False):
     '''
     Given a grid path, convert to vector, dissolved by grid value, in GeoDataFrame format.
 
@@ -1283,49 +1333,51 @@ def raster_to_feature(grid, profile_override = False, footprint_only = False):
         Dissolved (by gridvalue) vector data in GeoDataFrame.
 
     '''
-    #Determine what format input grid is:
-    #If a pathlib path, open with rasterio
+    # Determine what format input grid is:
+    # If a pathlib path, open with rasterio
     if isinstance(grid, pathlib.PurePath):
         dataset = rasterio.open(grid)
-    #If a rasterio dataset object, assign to dataset
+    # If a rasterio dataset object, assign to dataset
     elif isinstance(grid, rasterio.DatasetReader):
         dataset = grid
 
-    #Get data/mask and profile properties from dataset
+    # Get data/mask and profile properties from dataset
     data = dataset.read(1)
-    msk = dataset.read_masks(1)   
+    msk = dataset.read_masks(1)
     data_transform = dataset.transform
     coord_sys = dataset.crs
 
-    #If a profile override was supplied, use it to get the transform and coordinate system.
+    # If a profile override was supplied, use it to get the transform and coordinate system.
     if profile_override:
         data_transform = profile_override['transform']
         coord_sys = profile_override['crs']
-    
-    #If a footprint of the raster is desired, convert all data values to 1
+
+    # If a footprint of the raster is desired, convert all data values to 1
     if footprint_only:
-        data[msk == 255] = 1   
-    
-    #Convert grid to feature
+        data[msk == 255] = 1
+
+        # Convert grid to feature
     spatial = []
     values = []
-    for geom, val in rasterio.features.shapes(data, mask = msk, transform = data_transform):
+    for geom, val in rasterio.features.shapes(data, mask=msk, transform=data_transform):
         spatial.append(shape(geom))
-        values.append(val)        
-    spatial_geodataframe = gpd.GeoDataFrame({'values': values,'geometry':spatial }, crs = coord_sys)
-    dissolve_geodataframe = spatial_geodataframe.dissolve(by = 'values')
+        values.append(val)
+    spatial_geodataframe = gpd.GeoDataFrame({'values': values, 'geometry': spatial}, crs=coord_sys)
+    dissolve_geodataframe = spatial_geodataframe.dissolve(by='values')
     return dissolve_geodataframe
+
+
 ########################################################################
-#Create AHPS Benchmark Grid
+# Create AHPS Benchmark Grid
 ########################################################################
 def process_grid(benchmark, benchmark_profile, domain, domain_profile, reference_raster):
     '''
-    Given a benchmark grid and profile, a domain rasterio dataset and profile, and a reference raster, 
+    Given a benchmark grid and profile, a domain rasterio dataset and profile, and a reference raster,
     Match the benchmark dataset to the domain extent and create a classified grid convert to:
         0 (no data footprint of domain)
         1 (data footprint of domain)
         2 (data footprint of benchmark)
-    Then reproject classified benchmark grid to match reference grid resolution and crs. 
+    Then reproject classified benchmark grid to match reference grid resolution and crs.
     Output is an array of values and a profile.
 
     Parameters
@@ -1346,123 +1398,122 @@ def process_grid(benchmark, benchmark_profile, domain, domain_profile, reference
     boolean_benchmark : numpy Array
         Array of values for the benchmark_boolean grid.
     profile : rasterio profile
-        Updated, final profile of the boolean_benchmark grid. 
+        Updated, final profile of the boolean_benchmark grid.
 
     '''
-    
-    #Make benchmark have same dimensions as domain (Assume domain has same CRS as benchmark)
-    #Get source CRS (benchmark and domain assumed to be same CRS)
+
+    # Make benchmark have same dimensions as domain (Assume domain has same CRS as benchmark)
+    # Get source CRS (benchmark and domain assumed to be same CRS)
     source_crs = benchmark_profile['crs'].to_wkt()
-    #Get domain data
+    # Get domain data
     domain_arr = domain.read(1)
-    #Get benchmark data
+    # Get benchmark data
     benchmark_arr = benchmark.read(1)
-    #Create empty array with same dimensions as domain
+    # Create empty array with same dimensions as domain
     benchmark_fit_to_domain = np.empty(domain_arr.shape)
-    #Make benchmark have same footprint as domain (Assume domain has same CRS as benchmark)
-    reproject(benchmark_arr, 
-              destination = benchmark_fit_to_domain,
-              src_transform = benchmark.transform, 
-              src_crs = source_crs,
-              src_nodata = benchmark.nodata,
-              dst_transform = domain.transform, 
-              dst_crs = source_crs,
-              dst_nodata = benchmark.nodata,
-              dst_resolution = source_crs,
-              resampling = Resampling.bilinear)    
-    #Convert fitted benchmark dataset to boolean. 0 = NODATA Regions and 1 = Data Regions
-    benchmark_fit_to_domain_bool = np.where(benchmark_fit_to_domain == benchmark.nodata,0,1)
-    #Merge domain datamask and benchmark data mask. New_nodata_value (2) = Domain NO DATA footprint, 0 = NO DATA for benchmark (within data region of domain), 1 = DATA region of benchmark.
+    # Make benchmark have same footprint as domain (Assume domain has same CRS as benchmark)
+    reproject(benchmark_arr,
+              destination=benchmark_fit_to_domain,
+              src_transform=benchmark.transform,
+              src_crs=source_crs,
+              src_nodata=benchmark.nodata,
+              dst_transform=domain.transform,
+              dst_crs=source_crs,
+              dst_nodata=benchmark.nodata,
+              dst_resolution=source_crs,
+              resampling=Resampling.bilinear)
+    # Convert fitted benchmark dataset to boolean. 0 = NODATA Regions and 1 = Data Regions
+    benchmark_fit_to_domain_bool = np.where(benchmark_fit_to_domain == benchmark.nodata, 0, 1)
+    # Merge domain datamask and benchmark data mask. New_nodata_value (2) = Domain NO DATA footprint, 0 = NO DATA for benchmark (within data region of domain), 1 = DATA region of benchmark.
     new_nodata_value = 2
     classified_benchmark = np.where(domain_arr == domain.nodata, new_nodata_value, benchmark_fit_to_domain_bool)
-    
+
     ##Reproject classified benchmark to reference raster crs and resolution.
-    #Read in reference raster
+    # Read in reference raster
     reference = rasterio.open(reference_raster)
-    #Determine the new transform and dimensions of reprojected/resampled classified benchmark dataset whos width, height, and bounds are same as domain dataset.
-    new_benchmark_transform, new_benchmark_width, new_benchmark_height = calculate_default_transform(source_crs, reference.crs, domain.width, domain.height, *domain.bounds, resolution = reference.res)   
-    #Define an empty array that is same dimensions as output by the "calculate_default_transform" command. 
-    classified_benchmark_projected = np.empty((new_benchmark_height,new_benchmark_width), dtype=np.uint8) 
-    #Reproject and resample the classified benchmark dataset. Nearest Neighbor resampling due to integer values of classified benchmark.
-    reproject(classified_benchmark, 
-              destination = classified_benchmark_projected,
-              src_transform = domain.transform, 
-              src_crs = source_crs,
-              src_nodata = new_nodata_value,
-              dst_transform = new_benchmark_transform, 
-              dst_crs = reference.crs,
-              dst_nodata = new_nodata_value,
-              dst_resolution = reference.res,
-              resampling = Resampling.nearest)
-    
-    #Update profile using reference profile as base (data type, NODATA, transform, width/height).
+    # Determine the new transform and dimensions of reprojected/resampled classified benchmark dataset whos width, height, and bounds are same as domain dataset.
+    new_benchmark_transform, new_benchmark_width, new_benchmark_height = calculate_default_transform(source_crs,
+                                                                                                     reference.crs,
+                                                                                                     domain.width,
+                                                                                                     domain.height,
+                                                                                                     *domain.bounds,
+                                                                                                     resolution=reference.res)
+    # Define an empty array that is same dimensions as output by the "calculate_default_transform" command.
+    classified_benchmark_projected = np.empty((new_benchmark_height, new_benchmark_width), dtype=np.uint8)
+    # Reproject and resample the classified benchmark dataset. Nearest Neighbor resampling due to integer values of classified benchmark.
+    reproject(classified_benchmark,
+              destination=classified_benchmark_projected,
+              src_transform=domain.transform,
+              src_crs=source_crs,
+              src_nodata=new_nodata_value,
+              dst_transform=new_benchmark_transform,
+              dst_crs=reference.crs,
+              dst_nodata=new_nodata_value,
+              dst_resolution=reference.res,
+              resampling=Resampling.nearest)
+
+    # Update profile using reference profile as base (data type, NODATA, transform, width/height).
     profile = reference.profile
-    profile.update(transform = new_benchmark_transform)
-    profile.update(dtype = rasterio.uint8)
-    profile.update(nodata = new_nodata_value) 
-    profile.update (width = new_benchmark_width)
-    profile.update(height = new_benchmark_height)   
-    
+    profile.update(transform=new_benchmark_transform)
+    profile.update(dtype=rasterio.uint8)
+    profile.update(nodata=new_nodata_value)
+    profile.update(width=new_benchmark_width)
+    profile.update(height=new_benchmark_height)
+
     return classified_benchmark_projected, profile
 
 
 def calculate_metrics_from_agreement_raster(agreement_raster):
-
     ''' Calculates metrics from an agreement raster '''
 
-    agreement_encoding_digits_to_names = { 0: "TN",
-                                           1: "FN",
-                                           2: "FP",
-                                           3: "TP"
+    agreement_encoding_digits_to_names = {0: "TN",
+                                          1: "FN",
+                                          2: "FP",
+                                          3: "TP"
                                           }
 
-
-    if isinstance(agreement_raster,rasterio.DatasetReader):
+    if isinstance(agreement_raster, rasterio.DatasetReader):
         pass
-    elif isinstance(agreement_raster,str):
+    elif isinstance(agreement_raster, str):
         agreement_raster = rasterio.open(agreement_raster)
     else:
         raise TypeError(f"{agreement_raster} is not a Rasterio Dataset Reader or a filepath to a raster")
 
-    # cycle through blocks 
-    totals = dict.from_keys(list(range(4)),0)
-    for idx,wind in agreement_raster.block_windows(1):
-        window_data = agreement_raster.read(1,window=wind)
-        values, counts = np.unique(window_data,return_counts=True)
-        for val,cts in values_counts:
+    # cycle through blocks
+    totals = dict.from_keys(list(range(4)), 0)
+    for idx, wind in agreement_raster.block_windows(1):
+        window_data = agreement_raster.read(1, window=wind)
+        values, counts = np.unique(window_data, return_counts=True)
+        for val, cts in values_counts:
             totals[val] += cts
 
     results = dict()
-    for digit,count in totals.items():
+    for digit, count in totals.items():
         results[agreement_encoding_digits_to_names[digit]] = count
-   
-    return(results)
+
+    return (results)
 
 
 # evaluation metric fucntions
 
-def csi(TP,FP,FN,TN=None):
-
+def csi(TP, FP, FN, TN=None):
     ''' Critical Success Index '''
 
     return TP / (FP + FN + TP)
 
-    
-def tpr(TP,FP,FN,TN=None):
 
+def tpr(TP, FP, FN, TN=None):
     ''' True Positive Rate '''
-    
+
     return TP / (TP + FN)
 
 
-def far(TP,FP,FN,TN=None):
-
+def far(TP, FP, FN, TN=None):
     ''' False Alarm Rate '''
 
     return FP / (TP + FP)
 
 
-def mcc(TP,FP,FN,TN=None):
-
+def mcc(TP, FP, FN, TN=None):
     ''' Matthew's Correlation Coefficient '''
-    return (TP*TN - FP*FN) / np.sqrt((TP+FP)*(TP+FN)*(TN+FP)*(TN+FN))
+    return (TP * TN - FP * FN) / np.sqrt((TP + FP) * (TP + FN) * (TN + FP) * (TN + FN))
