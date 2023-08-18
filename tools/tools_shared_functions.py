@@ -337,8 +337,7 @@ def get_stats_table_from_binary_rasters(benchmark_raster_path: str,
         {true_negatives: int, false_negatives: int, false_positives: int, true_positives: int}
 
     """
-    print(benchmark_raster_path, candidate_raster_path)
-
+   
     # Load benchmark and candidate data
     benchmark_raster = rxr.open_rasterio(benchmark_raster_path)
     cell_area = np.abs(np.prod(benchmark_raster.rio.resolution()))
